@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Прайс-лист</title>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="styles/main.css">
+  </head>
+  <body>
+    <h2>Мой прайс-лист</h2>
+    <!-- 🔘 Кнопка переключения режима редактирования -->
+<div style="margin-top: 20px;">
+  <button id="editToggleBtn">Редактировать</button>
+</div>
+
+<!-- 🚨 Баннер о режиме редактирования -->
+<div id="editBanner" style="display: none; background: #ffdddd; color: #a00; padding: 10px; margin-top: 10px;">
+  ⚠️ Вы находитесь в режиме редактирования. Все изменения будут сохранены.
+</div>
+
+    <div>
+      Глобальная наценка:
+      <input type="number" id="globalMarkup" value="2" step="0.1" /> %
+      <button onclick="applyGlobalMarkup()">Применить ко всем</button>
+      <span style="float: right">
+        Поиск:
+        <input
+          type="text"
+          id="searchInput"
+          placeholder="Введите наименование..."
+        />
+      </span>
+    </div>
+    <div
+      class="upload-area"
+      onclick="document.getElementById('fileInput').click()"
+    >
+      Нажмите или перетащите сюда Excel-файл с ценами
+      <input
+        type="file"
+        id="fileInput"
+        accept=".xlsx,.xls"
+        style="display: none"
+      />
+    </div>
+
+    <table id="priceTable">
+      <thead>
+        <tr>
+          <th></th>
+          <th>Наименование</th>
+          <th>Цена вход</th>
+          <th>Наценка %</th>
+          <th>Наценка руб</th>
+          <th>Цена продажи</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+
+    <div id="unmatched">
+      <h3>Не загруженные цены</h3>
+      <div id="unmatchedList"></div>
+    </div>
+
+    <div id="synonymEditor">
+      <h3>Редактор синонимов</h3>
+      <div id="synonymList"></div>
+      <button onclick="addSynonymField()">Добавить синоним</button>
+    </div>
+
+    <script type="module" src="main.js"></script>
+  </body>
+</html>
