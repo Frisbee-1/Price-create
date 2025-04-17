@@ -1,272 +1,312 @@
 // 🔧 dataLoader.js
 // Этот модуль загружает данные с сервера и отрисовывает таблицу
 
-import { showUnmatched } from "./pricing.js";
+import { showUnmatched, createMaterialRow, recalculate } from "./pricing.js";
 import { normalizeName } from "./utils.js";
-import { createMaterialRow } from "./pricing.js";
 import { renderSynonymEditor } from "./editor.js";
-import { recalculate } from "./pricing.js";
 import { saveToServer } from "./server.js";
 
+// Инициализация данных
 export let synonyms = {};
-export let markupMap = {}; // 💰 карта наценок по наименованиям
+export let markupMap = {};
 export let materials = [];
 
-console.log("✅ saveToServer импортирован успешно");
+// ========================
+// 1. ОСНОВНЫЕ ФУНКЦИИ
+// ========================
 
 function updateMaterialsFromDOM() {
-  materials = [];
-  document.querySelectorAll("#priceTable tbody tr").forEach((tr) => {
-    const name = tr.dataset.name;
-    const isGroup = tr.dataset.group === "true";
-    if (name) {
-      materials.push({ name, isGroup });
-    }
-  });
-  console.log("🧠 Обновлённый materials из DOM:", materials);
+  materials = Array.from(document.querySelectorAll("#priceTable tbody tr"))
+    .filter((tr) => tr.dataset.name)
+    .map((tr) => ({
+      name: tr.dataset.name,
+      isGroup: tr.dataset.group === "true",
+    }));
 }
 
 function updateMarkupMapFromDOM() {
   markupMap = {};
-  document.querySelectorAll("#priceTable tbody tr").forEach((tr) => {
-    const name = tr.dataset.name;
-    const isGroup = tr.dataset.group === "true";
-    if (!isGroup) {
+  document
+    .querySelectorAll("#priceTable tbody tr:not([data-group='true'])")
+    .forEach((tr) => {
+      const name = tr.dataset.name;
       const markup = parseFloat(tr.querySelector(".markup")?.value);
-      if (!isNaN(markup)) {
+      if (name && !isNaN(markup)) {
         markupMap[name] = markup;
       }
-    }
-  });
+    });
 }
 
-// 📄 Собираем цены из DOM
 function updatePricesFromDOM() {
   const prices = {};
-  document.querySelectorAll("#priceTable tbody tr").forEach((tr) => {
-    const name = tr.dataset.name;
-    const isGroup = tr.dataset.group === "true";
-    if (!isGroup) {
-      const price = parseFloat(tr.querySelector(".price-in").textContent);
-      if (!isNaN(price)) {
+  document
+    .querySelectorAll("#priceTable tbody tr:not([data-group='true'])")
+    .forEach((tr) => {
+      const name = tr.dataset.name;
+      const price = parseFloat(tr.querySelector(".price-in")?.textContent);
+      if (name && !isNaN(price)) {
         prices[name] = price;
       }
-    }
-  });
+    });
   return prices;
 }
 
-export function handleUnmatchedMaterial(name, container) {
-  const div = document.createElement("div");
-  div.className = "unmatched-row";
-
-  const text = document.createElement("span");
-  text.textContent = name + " — не найден";
-  div.appendChild(text);
-
-  const addBtn = document.createElement("button");
-  addBtn.textContent = "Добавить в таблицу";
-  addBtn.onclick = () => {
-    const newItem = { name, isGroup: false };
-    materials.push(newItem);
-    createMaterialRow(newItem);
-    updateMarkupMapFromDOM();
-    const prices = updatePricesFromDOM();
-    console.log("📦 Перед сохранением, содержимое materials:", materials);
-    saveToServer(materials, synonyms, prices, markupMap);
-    renderSynonymEditor();
-    div.remove();
-  };
-  div.appendChild(addBtn);
-
-  const copyBtn = document.createElement("button");
-  copyBtn.textContent = "Копировать";
-  copyBtn.onclick = () => {
-    navigator.clipboard
-      .writeText(name)
-      .then(() => alert("Скопировано: " + name));
-  };
-  div.appendChild(copyBtn);
-
-  const removeBtn = document.createElement("button");
-  removeBtn.textContent = "✕";
-  removeBtn.onclick = () => div.remove();
-  div.appendChild(removeBtn);
-
-  container.appendChild(div);
-}
+// ========================
+// 2. ЗАГРУЗКА ДАННЫХ
+// ========================
 
 export function loadData() {
-  console.log("📦 Загружаем данные с сервера...");
-  fetch("http://localhost:3001/api/data")
-    .then((res) => res.json())
-    .then((data) => {
-      console.log("📥 Ответ с сервера:", data);
-      console.log("📦 materials из сервера:", data.materials);
-      if (data.materials) {
-        console.log("📎 data.materials из ответа сервера:", data.materials);
-        materials = data.materials;
-        console.log("📌 Присваиваем materials:", materials);
-        const tableBody = document
-          .getElementById("priceTable")
-          ?.querySelector("tbody");
-        if (!tableBody) {
-          console.error("Таблица priceTable не найдена!");
-          return;
-        }
-        tableBody.innerHTML = "";
-        console.log("🔁 Отрисовываем строки:", materials);
-        console.log("🌀 Проверка materials перед отрисовкой:", materials);
-        console.log(
-          "🔍 Кол-во строк materials для отрисовки:",
-          materials.length
-        );
+  console.log("🔄 Загрузка данных с сервера");
 
-        materials.forEach((item) => {
-          if (typeof item === "string") {
-            item = { name: item, isGroup: false };
-          }
-          if (data.prices && data.prices[item.name]) {
-            item.priceIn = data.prices[item.name];
-          }
-          if (data.markupMap && data.markupMap[item.name]) {
-            item.markup = data.markupMap[item.name];
-          }
-          console.log("📦 Перед вызовом createMaterialRow", item);
-          createMaterialRow(item);
-          console.log("✅ После createMaterialRow:", item);
-        });
-      }
-
-      if (data.synonyms) synonyms = data.synonyms;
-      if (data.markupMap) markupMap = data.markupMap;
-
-      for (const name in markupMap) {
-        const row = Array.from(
-          document.querySelectorAll("#priceTable tbody tr")
-        ).find((tr) => normalizeName(tr.dataset.name) === normalizeName(name));
-        if (row) {
-          const input = row.querySelector(".markup");
-          if (input) {
-            input.value = markupMap[name];
-          }
-        }
-      }
-
-      if (data.prices) {
-        for (const name in data.prices) {
-          const row = Array.from(
-            document.querySelectorAll("#priceTable tbody tr")
-          ).find(
-            (tr) => normalizeName(tr.dataset.name) === normalizeName(name)
-          );
-          if (row) {
-            row.querySelector(".price-in").textContent = data.prices[name];
-            const input = row.querySelector(".markup");
-            if (input) {
-              const priceIn = parseFloat(data.prices[name]);
-              const markup = parseFloat(input.value);
-              const priceOut = priceIn + (priceIn * markup) / 100;
-              const markupRub = priceOut - priceIn;
-              row.querySelector(".price-out").textContent = !isNaN(priceOut)
-                ? priceOut.toFixed(2)
-                : "N/A";
-              row.querySelector(".markup-rub").textContent = !isNaN(markupRub)
-                ? markupRub.toFixed(2)
-                : "N/A";
-            }
-          }
-        }
-      }
-
-      console.log("📊 Цены из базы:", data.prices);
-      console.log("📘 Синонимы из базы:", data.synonyms);
-      console.log("📦 Материалы:", materials);
-      renderSynonymEditor();
+  return fetch("http://localhost:3001/api/data")
+    .then((res) => {
+      if (!res.ok) throw new Error(`Ошибка HTTP: ${res.status}`);
+      return res.json();
     })
-    .catch((err) => {
-      console.error("Ошибка при загрузке данных:", err);
-    });
-}
+    .then((data) => {
+      console.log("📥 Данные получены:", data);
 
-export function handleFile(event) {
-  const file = event.target.files[0];
-  if (!file) return;
+      // Обработка и удаление дубликатов
+      const uniqueMaterials = [];
+      const seenNames = new Set();
 
-  const reader = new FileReader();
-  reader.onload = function (e) {
-    const data = new Uint8Array(e.target.result);
-    const workbook = XLSX.read(data, { type: "array" });
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const json = XLSX.utils.sheet_to_json(sheet);
-
-    const unmatched = [];
-    const pricesFromFile = {};
-
-    json.forEach((row) => {
-      const rawName = row["Наименование"];
-      const rawPrice = parseFloat(
-        row["Цена вход"] || row["Цена при с/в с завода, руб. за 1м2"]
-      );
-
-      if (!rawName || isNaN(rawPrice)) return;
-
-      const normalizedName = normalizeName(rawName);
-      let matched = false;
-
-      materials.forEach((item) => {
-        if (!item.isGroup) {
-          const original = item.name;
-          const normalizedOriginal = normalizeName(original);
-          if (
-            normalizedName === normalizedOriginal ||
-            normalizeName(synonyms[normalizedName]) === normalizedOriginal
-          ) {
-            pricesFromFile[original] = rawPrice;
-            matched = true;
-          }
+      data.materials.forEach((item) => {
+        const normName = normalizeName(item.name);
+        if (!seenNames.has(normName)) {
+          seenNames.add(normName);
+          uniqueMaterials.push(item);
         }
       });
 
-      if (!matched) {
-        unmatched.push(rawName);
+      // Обновление данных
+      materials = uniqueMaterials;
+      synonyms = data.synonyms || {};
+      markupMap = data.markupMap || {};
+
+      // Отрисовка таблицы
+      const tableBody = document.querySelector("#priceTable tbody");
+      if (tableBody) {
+        tableBody.innerHTML = "";
+        materials.forEach((item) => {
+          const enrichedItem = {
+            ...item,
+            priceIn: data.prices?.[item.name] || 0,
+            markup: data.markupMap?.[item.name] || 0,
+          };
+          createMaterialRow(enrichedItem);
+        });
       }
+
+      return data;
+    })
+    .catch((err) => {
+      console.error("❌ Ошибка загрузки:", err);
+      throw err;
     });
-
-    document.querySelectorAll("#priceTable tbody tr").forEach((tr) => {
-      const name = tr.dataset.name;
-      if (pricesFromFile[name]) {
-        tr.querySelector(".price-in").textContent = pricesFromFile[name];
-        recalculate(tr.querySelector(".markup"));
-      }
-    });
-
-    const list = document.getElementById("unmatchedList");
-    if (!list) {
-      console.error("Список unmatchedList не найден!");
-      return;
-    }
-    list.innerHTML = "";
-
-    unmatched.forEach((name) => {
-      handleUnmatchedMaterial(name, list);
-    });
-    updateMaterialsFromDOM(); // 🧠 Обновляем materials перед сохранением
-    console.log("📦 Перед сохранением, содержимое materials:", materials);
-    saveToServer(materials, synonyms, pricesFromFile, markupMap);
-  };
-
-  reader.readAsArrayBuffer(file);
 }
 
-// 🎯 Сохраняем изменения наценки при её ручном вводе
+// ========================
+// 3. ОБРАБОТКА EXCEL
+// ========================
 
-// 🔁 Обработка ручного ввода наценки и сохранение всех данных
-document.addEventListener("input", (e) => {
-  if (e.target.classList.contains("markup")) {
-    updateMarkupMapFromDOM();
-    const prices = updatePricesFromDOM();
-    console.log("📦 Перед сохранением, содержимое materials:", materials);
-    saveToServer(materials, synonyms, prices, markupMap);
+export function handleFile(event) {
+  console.log("📥 handleFile вызван, файл:", event?.target?.files?.[0]);
+  if (!event?.target?.files?.[0]) {
+    console.error("❌ Файл не выбран");
+    return;
   }
-});
+
+  const reader = new FileReader();
+  reader.onload = function (e) {
+
+    try {
+      // Парсинг Excel
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: "array" });
+      const json = XLSX.utils.sheet_to_json(
+        workbook.Sheets[workbook.SheetNames[0]]
+      );
+      console.log("✅ Файл Excel прочитан:", json);
+
+      // Фильтрация новых материалов
+      const existingNames = materials.map((m) => normalizeName(m.name));
+      window.tempExcelData = json.filter((row) => {
+        try {
+          const rowName = normalizeName(
+            row["Наименование"] || row["Item Name"]
+          );
+          const exists = existingNames.includes(rowName); // 💥 ВОТ ЭТО НУЖНО ДОБАВИТЬ
+
+          console.log("🔍 Сравнение:", {
+            исходное: row["Наименование"] || row["Item Name"],
+            нормализованное: rowName,
+            ужеЕсть: exists,
+          });
+
+          return rowName && !exists;
+        } catch (error) {
+          console.error("❌ Ошибка в filter:", error, "→ строка:", row);
+          return false;
+        }
+      });
+console.log("🧩 Строки из Excel (tempExcelData):", window.tempExcelData);
+      // Отображение несоответствий
+      const unmatchedList = document.getElementById("unmatchedList");
+      if (unmatchedList) {
+        unmatchedList.innerHTML = "";
+        window.tempExcelData.forEach((row) => {
+          console.log("🔍 Ключи строки из Excel:", Object.keys(row)); // 👈 вставь сюда
+          const name = row["Наименование"] || row["Item Name"];// Если в колонку добавляем другое наименование, то его нужно прописать тут
+          console.log("🎯 Добавляем в unmatchedList:", name);
+          handleUnmatchedMaterial(name, unmatchedList);
+        });
+
+      }
+    } catch (error) {
+      console.error("❌ Ошибка обработки файла:", error);
+      alert("Ошибка загрузки файла. Проверьте формат.");
+    }
+  };
+  reader.readAsArrayBuffer(event.target.files[0]);
+}
+
+// ========================
+// 4. НЕЗАГРУЖЕННЫЕ ЦЕНЫ
+// ========================
+
+export function handleUnmatchedMaterial(name, container) {
+  // 🎯 Создаём обёртку для строки unmatched материала
+  const div = document.createElement("div"); // <div class="unmatched-row">
+  div.className = "unmatched-row";
+
+  // 🏷️ Название материала
+  const span = document.createElement("span");
+  span.textContent = name;
+
+  // ➕ Кнопка "Добавить"
+  const addBtn = document.createElement("button");
+  addBtn.type = "button"; // чтобы не срабатывал submit
+  addBtn.className = "add-btn";
+  addBtn.textContent = "Добавить";
+
+  // 📋 Кнопка "Копировать"
+  const copyBtn = document.createElement("button");
+  copyBtn.type = "button";
+  copyBtn.className = "copy-btn";
+  copyBtn.textContent = "Копировать";
+
+  // ❌ Кнопка "Удалить"
+  const removeBtn = document.createElement("button");
+  removeBtn.type = "button";
+  removeBtn.className = "remove-btn";
+  removeBtn.innerHTML = "✕";
+
+  // 📎 Вставляем кнопки и текст в строку
+  div.append(span, addBtn, copyBtn, removeBtn);
+
+  // 🔘 Обработка кнопки "Добавить"
+  addBtn.addEventListener("click", (e) => {
+    console.log("👆 Кнопка ДОБАВИТЬ нажата"); // ✅ должна появиться только один раз
+
+    e.preventDefault(); // блокируем стандартное поведение
+    e.stopPropagation(); // останавливаем всплытие
+    e.stopImmediatePropagation(); // полностью блокируем внешние обработчики
+
+    setTimeout(async () => {
+      try {
+        console.log("🟡 ДОБАВЛЕНИЕ МАТЕРИАЛА: запускаем setTimeout");
+
+        // 🔍 Ищем соответствующий элемент из Excel
+        const excelItem = window.tempExcelData?.find(
+          (item) => normalizeName(item["Наименование"]) === normalizeName(name)
+        );
+
+        // 🧱 Формируем новый объект материала
+        const newItem = {
+          name: name, // Название
+          isGroup: false, // Это обычный материал
+          priceIn: excelItem ? parseFloat(excelItem["Цена вход"]) : 0, // Цена вход
+        };
+
+        materials.push(newItem); // ➕ Добавляем в общий массив
+        createMaterialRow(newItem); // 🧱 Отрисовываем строку в таблицу
+        await updateAndSave(); // 💾 Сохраняем в базе данных - когда закоментировал эту строку, после кнопки добавить страница перестала перезагружаться
+        div.remove(); // 🧹 Удаляем строку из unmatched - из загружаемого файла сразу после нажатия кнопки Добавить
+
+        console.log(
+          "✅ Добавление завершено. Обновляем данные и убираем блок."
+        );
+      } catch (err) {
+        console.error(
+          "❌ Ошибка внутри setTimeout при добавлении материала:",
+          err
+        );
+      }
+    }, 0);
+
+    return false; // ещё одна защита от submit
+  });
+
+  // 📋 Обработка кнопки "Копировать"
+  copyBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    navigator.clipboard.writeText(name); // Копируем имя в буфер
+  });
+
+  // ❌ Обработка кнопки "Удалить"
+  removeBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    div.remove(); // Удаляем строку из интерфейса
+  });
+
+  // 📥 Добавляем эту строку в контейнер unmatched
+  container.appendChild(div);
+}
+
+// ========================
+// 5. СОХРАНЕНИЕ ДАННЫХ
+// ========================
+
+function updateAndSave() {
+  console.log("🛠 updateAndSave вызван");
+  updateMaterialsFromDOM();
+  updateMarkupMapFromDOM();
+  const prices = updatePricesFromDOM();
+  console.log("➡️ updateAndSave: вызывает saveToServer");
+  saveToServer(materials, synonyms, prices, markupMap)
+    .then(() => {
+      console.log("✅ updateAndSave: saveToServer завершился успешно");
+    })
+    .catch((error) => {
+      console.error(
+        "❌ updateAndSave: saveToServer завершился с ошибкой:",
+        error
+      );
+    });
+  console.log("➡️ updateAndSave: завершение");
+}
+
+// ========================
+// 6. ИНИЦИАЛИЗАЦИЯ
+// ========================
+
+// Делаем функции глобально доступными
+window.loadData = loadData;
+window.handleFile = handleFile;
+
+// Автосохранение при изменении наценки
+document
+  .getElementById("tableBody") // ✨
+  .addEventListener("input", (e) => {
+    // ✨
+    if (e.target.classList.contains("markup")) {
+      recalculate(e.target); // пересчитываем цифры
+      updateAndSave(); // сохраняем на сервер
+    }
+  });
+
+console.log("✅ dataLoader.js загружен");
+
+export { updateAndSave };

@@ -1,16 +1,10 @@
 // 📦 Импорт всех модулей
-import {
-  recalculate,
-  applyGlobalMarkup,
-} from "./modules/pricing.js";
+import { recalculate, applyGlobalMarkup } from "./modules/pricing.js";
 import { renderSynonymEditor } from "./modules/editor.js";
-import {
-  loadData,
-  handleFile,
-  synonyms,
-} from "./modules/dataLoader.js";
+import { loadData, handleFile, synonyms } from "./modules/dataLoader.js";
 import { toggleEditMode } from "./modules/editMode.js";
-import { saveToServer } from "./modules/server.js"; // ✅ импортируем функцию сохранения
+import { saveToServer } from "./modules/server.js";
+
 
 let dragSrcEl = null;
 
@@ -31,6 +25,7 @@ function handleDragStart(e) {
   e.dataTransfer.effectAllowed = "move";
   e.dataTransfer.setData("text/html", this.innerHTML);
 }
+
 
 function handleDragOver(e) {
   if (e.preventDefault) e.preventDefault();
@@ -78,13 +73,50 @@ import("./modules/editor.js").then((mod) => {
 
 // 🔁 Когда DOM загружен — запускаем загрузку данных
 document.addEventListener("DOMContentLoaded", () => {
-  console.log("📦 Запускаем loadData из main.js...");
-  document.getElementById("fileInput").addEventListener("change", handleFile);
+  console.log("⏳ DOMContentLoaded: Начало выполнения...");
+  console.log("⏳ DOMContentLoaded: Подключаем обработчики...");
+
+  const fileInput = document.getElementById("fileInput");
+  if (!fileInput) {
+    console.error("❌ Элемент fileInput не найден!");
+    return;
+  }
+
+  
+  fileInput.addEventListener("change", (event) => {
+  console.log("📥 Событие change: Файл выбран!");
+  console.log("🔍 event.target:", event.target);
+  handleFile(event);
+  });
+
   loadData();
   renderSynonymEditor();
 
   const editBtn = document.getElementById("editToggleBtn");
   if (editBtn) {
-    editBtn.addEventListener("click", toggleEditMode);
+    //ЗАКОМЕНТИРОВАНО ВРЕМЕНО
+    //editBtn.addEventListener("click", toggleEditMode);
   }
 });
+
+
+
+//Этот код ничего не делает с данными, он только выводит сообщения в консоль с задержкой — например, чтобы можно было представить, будто "что-то происходит" перед завершением операции.
+/*console.log("🟡 ДОБАВЛЕНИЕ МАТЕРИАЛА: запускаем setTimeout");
+
+setTimeout(() => {
+  console.log("✅ Добавление завершено. Обновляем данные и убираем блок.");
+}, 2000);
+*/
+
+
+//Этот код если случается автоматическая перезагрузка страницы прежде тебя спросит "Перезагрузить?""
+/*window.addEventListener("beforeunload", function (e) {
+  const confirmMessage = "🔁 Страница пытается обновиться. Проверь действия!";
+  console.warn(confirmMessage);
+  e.preventDefault();
+  e.returnValue = confirmMessage;
+  return confirmMessage;
+});*/
+
+

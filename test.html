@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test File Input</title>
+</head>
+<body>
+  <h1>Тест input[type="file"]</h1>
+  <input type="file" id="testFileInput" accept=".xlsx,.xls" />
+
+  <script>
+    const testFileInput = document.getElementById("testFileInput");
+    if (testFileInput) {
+      console.log("✅ Элемент testFileInput найден!");
+
+      testFileInput.addEventListener("change", (event) => {
+        console.log("📥 Событие change сработало!");
+        console.log("🔍 event.target:", event.target);
+      });
+    } else {
+      console.error("❌ Элемент testFileInput не найден!");
+    }
+  </script>
+</body>
+</html>

@@ -9,11 +9,17 @@
 import { materials, synonyms } from "./dataLoader.js";
 import { saveToServer } from "./server.js";
 
+// ========================
+// 1. ОТРИСОВКА РЕДАКТОРА СИНОНИМОВ
+// ========================
+
+// Главная функция, отвечающая за обновление блока "Редактор синонимов"
 export function renderSynonymEditor() {
   const list = document.getElementById("synonymList");
   if (!list) return;
   list.innerHTML = "";
 
+  // Фильтруем только материалы (без групп)
   const materialNames = materials.filter((m) => !m.isGroup).map((m) => m.name);
 
   materialNames.forEach((baseName, index) => {
@@ -23,6 +29,9 @@ export function renderSynonymEditor() {
     row.style.marginBottom = "5px";
     row.style.flexWrap = "wrap";
 
+    // ========================
+    // 2. РЕДАКТИРОВАНИЕ ОСНОВНОГО НАЗВАНИЯ МАТЕРИАЛА
+    // ========================
     const baseInput = document.createElement("input");
     baseInput.type = "text";
     baseInput.value = baseName;
@@ -31,15 +40,21 @@ export function renderSynonymEditor() {
       const newVal = baseInput.value.trim();
       if (newVal && newVal !== baseName) {
         materials[index].name = newVal;
+
+        // Обновляем все синонимы, ссылающиеся на старое название
         for (const key in synonyms) {
           if (synonyms[key] === baseName) synonyms[key] = newVal;
         }
+
         renderSynonymEditor();
         saveToServer();
       }
     };
     row.appendChild(baseInput);
 
+    // ========================
+    // 3. РЕДАКТИРОВАНИЕ СИНОНИМОВ ДЛЯ ТЕКУЩЕГО МАТЕРИАЛА
+    // ========================
     const matchedSynonyms = Object.entries(synonyms).filter(
       ([key, val]) => val === baseName
     );
@@ -75,6 +90,9 @@ export function renderSynonymEditor() {
       row.appendChild(removeBtn);
     });
 
+    // ========================
+    // 4. ДОБАВЛЕНИЕ НОВОГО СИНОНИМА
+    // ========================
     const plus = document.createElement("button");
     plus.textContent = "+";
     plus.style.marginLeft = "10px";
